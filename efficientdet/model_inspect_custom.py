@@ -103,20 +103,20 @@ class Inspector(object):
     self.saved_model_dir=saved_model_dir
     self.tflite_path=tflite_path
 
-  def get_model_inspector(self):
+  def get_model_inspector(self, name, ckpt, saved_dir):
 
     if tf.io.gfile.exists(self.logdir) and self.delete_logdir:
       logging.info('Deleting log dir ...')
       tf.io.gfile.rmtree(self.logdir)
 
     inspector = ModelInspector(
-        model_name=self.model_name,
+        model_name=name,
         logdir=self.logdir,
         tensorrt=self.tensorrt,
         use_xla=self.use_xla,
-        ckpt_path=self.ckpt_path,
+        ckpt_path=ckpt,
         export_ckpt=self.export_ckpt,
-        saved_model_dir=self.saved_model_dir,
+        saved_model_dir=saved_dir,
         tflite_path=self.tflite_path,
         batch_size=self.batch_size,
         hparams=self.hparams,
@@ -208,11 +208,11 @@ class ModelInspector(object):
     driver.build()
     driver.export(self.saved_model_dir, self.tflite_path, self.tensorrt)
 
-  def get_model_driver(self, **kwargs): # Get the model 
+  def get_model_driver(self, batch_size=1, **kwargs): # Get the model 
     driver = inference.ServingDriver(
         self.model_name,
         self.ckpt_path,
-        batch_size=self.batch_size,
+        batch_size=batch_size,
         use_xla=self.use_xla,
         model_params=self.model_config.as_dict(),
         **kwargs)
@@ -220,7 +220,7 @@ class ModelInspector(object):
 
     return driver
 
-  def saved_model_inference(self, image_path_pattern, model_driver=None, **kwargs):
+  def saved_model_inference(self, image_path_pattern, output_dir, model_driver=None,**kwargs):
     
     if not model_driver:
       driver = self.get_model_driver(**kwargs)
@@ -251,12 +251,12 @@ class ModelInspector(object):
       detections_bs = driver.serve_images(raw_images)
 
       for j in range(size_before_pad):
-        #img = driver.visualize(raw_images[j], detections_bs[j], **kwargs)
+        img = driver.visualize(raw_images[j], detections_bs[j], **kwargs)
         img_id = str(i * batch_size + j)
         images_dict[img_id] = [raw_images[j], detections_bs[j]]
-        # output_image_path = os.path.join(output_dir, img_id + '.jpg')
-        # Image.fromarray(img).save(output_image_path)
-        # print('writing file to %s' % output_image_path)
+        output_image_path = os.path.join(output_dir, img_id + '.jpg')
+        Image.fromarray(img).save(output_image_path)
+        print('writing file to %s' % output_image_path)
     return images_dict  
     
   def saved_model_benchmark(self,
